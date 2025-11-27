@@ -1,43 +1,60 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Voice Attendance</title>
-  <link rel="stylesheet" href="styles.css">
+    <title>Voice Attendance System</title>
 </head>
 <body>
-  <div class="container">
-    <h1>Voice Attendance</h1>
+    <h2>Voice Attendance System</h2>
+    <button onclick="startAttendance()">Start Attendance</button>
+    <p id="status"></p>
 
-    <div class="controls">
-      <button id="startBtn">🎤 Start Listening</button>
-      <button id="stopBtn" disabled>⏹ Stop</button>
-      <button id="exportBtn">📥 Export CSV</button>
-      <label class="hint">Use Chrome. HTTPS required for mic.</label>
-    </div>
+    <script>
+        const students = ["Arjun", "Riya", "Manoj", "Sneha", "Chandu"];
+        let roll = 0;
+        const attendance = {};
 
-    <div class="status" id="status">Status: idle</div>
+        function speak(text) {
+            const msg = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(msg);
+        }
 
-    <div class="results">
-      <h2>Attendance Today (<span id="dateLabel"></span>)</h2>
-      <table id="attTable">
-        <thead><tr><th>Name</th><th>USN</th><th>Time</th><th>Match</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+        function listen(callback) {
+            const recognition = new webkitSpeechRecognition();
+            recognition.lang = "en-IN";
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript.toLowerCase();
+                callback(transcript);
+            };
+            recognition.start();
+        }
 
-    <details>
-      <summary>Student Database</summary>
-      <textarea id="dbArea" rows="10"></textarea>
-      <div>
-        <button id="saveDbBtn">Save DB</button>
-        <button id="loadSampleBtn">Load Sample DB</button>
-      </div>
-      <p class="small">Format: [{"name":"ABC","usn":"1XX23CS001"}]</p>
-    </details>
-  </div>
+        function startAttendance() {
+            if(roll >= students.length) {
+                document.getElementById("status").innerText = "Attendance Completed!";
+                speak("Attendance completed");
+                console.log(attendance);
+                return;
+            }
 
-  <script src="app.js"></script>
+            const name = students[roll];
+            speak(`Roll number ${roll+1}, ${name}`);
+            document.getElementById("status").innerText = `Calling: Roll ${roll+1} - ${name}`;
+
+            setTimeout(() => {
+                speak("Say Present");
+                listen((response) => {
+                    if(response.includes("present")) {
+                        attendance[name] = "Present";
+                        speak("Marked Present");
+                    } else {
+                        attendance[name] = "Absent";
+                        speak("Marked Absent");
+                    }
+                    roll++;
+                    startAttendance();
+                });
+            }, 1500);
+        }
+    </script>
 </body>
 </html>

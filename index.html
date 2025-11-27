@@ -5,13 +5,18 @@
 </head>
 <body>
     <h2>Voice Attendance System</h2>
+
     <button onclick="startAttendance()">Start Attendance</button>
+    <button onclick="stopAttendance()">Stop</button>
+
     <p id="status"></p>
 
     <script>
         const students = ["Arjun", "Riya", "Manoj", "Sneha", "Chandu"];
         let roll = 0;
         const attendance = {};
+        let stopped = false;
+        let recognition;
 
         function speak(text) {
             const msg = new SpeechSynthesisUtterance(text);
@@ -19,7 +24,7 @@
         }
 
         function listen(callback) {
-            const recognition = new webkitSpeechRecognition();
+            recognition = new webkitSpeechRecognition();
             recognition.lang = "en-IN";
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript.toLowerCase();
@@ -28,8 +33,24 @@
             recognition.start();
         }
 
+        function stopAttendance() {
+            stopped = true;
+            if (recognition) recognition.stop();
+            speak("Attendance stopped");
+
+            document.getElementById("status").innerText =
+                "Attendance Stopped!\n" + JSON.stringify(attendance, null, 2);
+        }
+
         function startAttendance() {
-            if(roll >= students.length) {
+            stopped = false;
+            callNextStudent();
+        }
+
+        function callNextStudent() {
+            if (stopped) return;
+
+            if (roll >= students.length) {
                 document.getElementById("status").innerText = "Attendance Completed!";
                 speak("Attendance completed");
                 console.log(attendance);
@@ -41,9 +62,11 @@
             document.getElementById("status").innerText = `Calling: Roll ${roll+1} - ${name}`;
 
             setTimeout(() => {
+                if (stopped) return;
+
                 speak("Say Present");
                 listen((response) => {
-                    if(response.includes("present")) {
+                    if (response.includes("present")) {
                         attendance[name] = "Present";
                         speak("Marked Present");
                     } else {
@@ -51,7 +74,7 @@
                         speak("Marked Absent");
                     }
                     roll++;
-                    startAttendance();
+                    callNextStudent();
                 });
             }, 1500);
         }

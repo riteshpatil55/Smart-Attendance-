@@ -24,12 +24,21 @@
         }
 
         function listen(callback) {
-            recognition = new webkitSpeechRecognition();
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
             recognition.lang = "en-IN";
+            recognition.interimResults = false;
+            recognition.continuous = false;
+
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript.toLowerCase();
                 callback(transcript);
             };
+
+            recognition.onerror = () => {
+                callback(""); 
+            };
+
             recognition.start();
         }
 
@@ -37,13 +46,13 @@
             stopped = true;
             if (recognition) recognition.stop();
             speak("Attendance stopped");
-
             document.getElementById("status").innerText =
                 "Attendance Stopped!\n" + JSON.stringify(attendance, null, 2);
         }
 
         function startAttendance() {
             stopped = false;
+            roll = 0;
             callNextStudent();
         }
 
@@ -51,8 +60,8 @@
             if (stopped) return;
 
             if (roll >= students.length) {
-                document.getElementById("status").innerText = "Attendance Completed!";
                 speak("Attendance completed");
+                document.getElementById("status").innerText = "Attendance Completed!";
                 console.log(attendance);
                 return;
             }
@@ -66,6 +75,7 @@
 
                 speak("Say Present");
                 listen((response) => {
+
                     if (response.includes("present")) {
                         attendance[name] = "Present";
                         speak("Marked Present");
@@ -73,6 +83,7 @@
                         attendance[name] = "Absent";
                         speak("Marked Absent");
                     }
+
                     roll++;
                     callNextStudent();
                 });

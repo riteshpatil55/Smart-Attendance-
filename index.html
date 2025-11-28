@@ -1,94 +1,223 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-    <title>Voice Attendance System</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Voice Attendance — Student Registration</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--glass:rgba(255,255,255,0.03)}
+    *{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#071021);color:#e6eef6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{width:100%;max-width:920px;background:var(--card);border-radius:12px;padding:20px;box-shadow:0 10px 30px rgba(2,6,23,0.6)}
+    h1{margin:0 0 8px;font-size:20px}
+    p.lead{margin:0 0 18px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit}
+    button{background:var(--accent);border:0;padding:10px 12px;border-radius:10px;color:#042027;font-weight:600;cursor:pointer}
+    .controls{display:flex;gap:8px;margin-top:10px}
+    .rec-status{margin-top:10px;font-size:14px;color:#a7f3d0}
+    .list{max-height:280px;overflow:auto;margin-top:12px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01)}
+    .rec-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.02)}
+    .rec-item small{color:var(--muted)}
+    .hint{font-size:13px;color:var(--muted);margin-top:8px}
+    .footer{margin-top:14px;color:var(--muted);font-size:13px}
+    @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
-    <h2>Voice Attendance System</h2>
+  <div class="card">
+    <h1>Student Voice Registration</h1>
+    <p class="lead">Record a clear sample of the student saying <strong>"Present"</strong> (or a short passphrase). Save it with their USN / roll no — this will be used for voice verification later.</p>
 
-    <button onclick="startAttendance()">Start Attendance</button>
-    <button onclick="stopAttendance()">Stop</button>
+    <div class="grid">
+      <div>
+        <label for="usn">Student USN / Roll No</label>
+        <input id="usn" type="text" placeholder="e.g. 1RV19CS001" autocomplete="off" />
 
-    <p id="status"></p>
+        <label for="name" style="margin-top:12px">Student Name</label>
+        <input id="name" type="text" placeholder="Full name" />
 
-    <script>
-        const students = ["Arjun", "Riya", "Manoj", "Sneha", "Chandu"];
-        let roll = 0;
-        const attendance = {};
-        let stopped = false;
-        let recognition;
+        <label for="lang" style="margin-top:12px">Language / Passphrase</label>
+        <select id="lang">
+          <option value="present">Say: "Present"</option>
+          <option value="present-kannada">Say: "ಸ್ಪರ್ಧಿ" (present in Kannada) — change to your chosen phrase</option>
+          <option value="custom">Custom passphrase</option>
+        </select>
+        <input id="customPhrase" type="text" placeholder="Type custom phrase" style="margin-top:8px;display:none" />
 
-        function speak(text) {
-            const msg = new SpeechSynthesisUtterance(text);
-            window.speechSynthesis.speak(msg);
+        <div style="margin-top:12px">
+          <label>Recording Controls</label>
+          <div class="controls">
+            <button id="startBtn">Start Recording</button>
+            <button id="stopBtn" disabled>Stop</button>
+            <button id="playBtn" disabled>Play</button>
+            <button id="saveBtn" disabled>Save Sample</button>
+          </div>
+          <div class="rec-status" id="status">Status: Idle</div>
+          <div class="hint">Tip: Record 2–3 clear samples per student for better matching. Use a quiet room.</div>
+        </div>
+
+        <div class="footer">This page records audio in the browser and can upload to your server for storage & model training. Scroll right to see recorded clips list.</div>
+      </div>
+
+      <div>
+        <label>Recorded Samples</label>
+        <div class="list" id="recordingsList">No recordings yet.</div>
+      </div>
+    </div>
+
+    <hr style="margin:18px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)"/>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button id="uploadAllBtn" disabled>Upload All to Server</button>
+      <small style="color:var(--muted)">Server endpoint: <code>/api/upload-voice</code> (POST multipart/form-data)</small>
+    </div>
+
+    <!-- Helpful server example (Node.js + Express + multer):
+
+    // Node server example (save as server.js)
+    const express = require('express');
+    const multer = require('multer');
+    const path = require('path');
+    const fs = require('fs');
+    const upload = multer({ dest: 'uploads/' });
+    const app = express();
+    app.post('/api/upload-voice', upload.single('file'), (req,res)=>{
+      // req.body.usn, req.body.name, req.body.phrase
+      // req.file contains uploaded file
+      // move to desired folder or process
+      const targetDir = path.join(__dirname,'stored_samples', req.body.usn);
+      fs.mkdirSync(targetDir, { recursive: true });
+      const filename = Date.now() + '-' + req.file.originalname;
+      fs.renameSync(req.file.path, path.join(targetDir, filename));
+      res.json({ok:true, path: `/stored_samples/${req.body.usn}/${filename}`});
+    });
+    app.listen(3000, ()=>console.log('Server running on :3000'));
+
+    // On server you may then run a voice embedding pipeline (pyannote/Resemblyzer/Custom model)
+    -->
+
+  </div>
+
+  <script>
+    // Small in-page recorder using MediaRecorder
+    let mediaRecorder, audioChunks = [];
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const playBtn = document.getElementById('playBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const status = document.getElementById('status');
+    const recordingsList = document.getElementById('recordingsList');
+    const usnInput = document.getElementById('usn');
+    const nameInput = document.getElementById('name');
+    const uploadAllBtn = document.getElementById('uploadAllBtn');
+    const langSelect = document.getElementById('lang');
+    const customPhrase = document.getElementById('customPhrase');
+
+    const samples = []; // {blob, name, usn, phrase, createdAt}
+
+    langSelect.addEventListener('change', ()=>{
+      customPhrase.style.display = (langSelect.value === 'custom') ? 'block' : 'none';
+    });
+
+    async function ensureMic(){
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return stream;
+      }catch(e){
+        alert('Microphone access is required. Allow microphone in the browser and reload.');
+        throw e;
+      }
+    }
+
+    startBtn.addEventListener('click', async ()=>{
+      const stream = await ensureMic();
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstart = ()=>{
+        status.textContent = 'Status: Recording...';
+        startBtn.disabled = true; stopBtn.disabled = false; playBtn.disabled = true; saveBtn.disabled = true;
+      }
+      mediaRecorder.onstop = ()=>{
+        status.textContent = 'Status: Recording stopped';
+        startBtn.disabled = false; stopBtn.disabled = true; playBtn.disabled = false; saveBtn.disabled = false;
+      }
+      mediaRecorder.start();
+    });
+
+    stopBtn.addEventListener('click', ()=>{
+      if(mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+    });
+
+    playBtn.addEventListener('click', ()=>{
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      a.play();
+    });
+
+    saveBtn.addEventListener('click', ()=>{
+      if(!usnInput.value.trim()){ alert('Please enter USN / roll number'); return; }
+      const phrase = (langSelect.value === 'custom') ? (customPhrase.value || '') : langSelect.options[langSelect.selectedIndex].text;
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const rec = { blob, usn: usnInput.value.trim(), name: nameInput.value.trim(), phrase, createdAt: new Date().toISOString() };
+      samples.push(rec);
+      renderList();
+      // reset for next recording
+      audioChunks = [];
+      playBtn.disabled = true; saveBtn.disabled = true;
+      status.textContent = 'Status: Sample saved locally';
+      uploadAllBtn.disabled = false;
+    });
+
+    function renderList(){
+      if(samples.length === 0){ recordingsList.innerHTML = 'No recordings yet.'; return; }
+      recordingsList.innerHTML = '';
+      samples.forEach((s, i)=>{
+        const item = document.createElement('div'); item.className='rec-item';
+        const info = document.createElement('div'); info.style.flex='1';
+        info.innerHTML = `<div style="font-weight:600">${s.usn} ${s.name?('- '+escapeHtml(s.name)):''}</div><small>${s.phrase} • ${new Date(s.createdAt).toLocaleString()}</small>`;
+        const audioUrl = URL.createObjectURL(s.blob);
+        const audioEl = document.createElement('audio'); audioEl.src = audioUrl; audioEl.controls = true; audioEl.style.marginLeft='8px';
+        const dl = document.createElement('button'); dl.textContent='Download'; dl.style.background='transparent'; dl.style.color='var(--muted)'; dl.style.border='1px solid rgba(255,255,255,0.03)'; dl.style.padding='6px 8px'; dl.style.borderRadius='8px'; dl.addEventListener('click', ()=>downloadBlob(s.blob, `${s.usn}-${Date.now()}.webm`));
+        const remove = document.createElement('button'); remove.textContent='Remove'; remove.style.background='transparent'; remove.style.color='var(--muted)'; remove.style.border='1px solid rgba(255,255,255,0.03)'; remove.style.padding='6px 8px'; remove.style.borderRadius='8px'; remove.addEventListener('click', ()=>{ samples.splice(i,1); renderList(); if(samples.length===0) uploadAllBtn.disabled=true; });
+        item.appendChild(info); item.appendChild(audioEl); item.appendChild(dl); item.appendChild(remove);
+        recordingsList.appendChild(item);
+      });
+    }
+
+    uploadAllBtn.addEventListener('click', async ()=>{
+      if(samples.length === 0) return alert('No samples to upload');
+      uploadAllBtn.disabled = true; uploadAllBtn.textContent = 'Uploading...';
+      try{
+        for(let i=0;i<samples.length;i++){
+          const s = samples[i];
+          const fd = new FormData();
+          // convert webm to blob (already blob) and set filename
+          fd.append('file', s.blob, `${s.usn}-${Date.now()}.webm`);
+          fd.append('usn', s.usn);
+          fd.append('name', s.name);
+          fd.append('phrase', s.phrase);
+          const res = await fetch('/api/upload-voice', { method:'POST', body: fd });
+          const j = await res.json();
+          console.log('Uploaded', j);
         }
+        alert('All samples uploaded successfully');
+        samples.length = 0; renderList(); uploadAllBtn.disabled = true; uploadAllBtn.textContent = 'Upload All to Server';
+      }catch(err){
+        console.error(err); alert('Upload failed — check console and server endpoint'); uploadAllBtn.disabled = false; uploadAllBtn.textContent = 'Upload All to Server';
+      }
+    });
 
-        function listen(callback) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.lang = "en-IN";
-            recognition.interimResults = false;
-            recognition.continuous = false;
+    function downloadBlob(blob, filename){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    }
 
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript.toLowerCase();
-                callback(transcript);
-            };
+    function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-            recognition.onerror = () => {
-                callback(""); 
-            };
-
-            recognition.start();
-        }
-
-        function stopAttendance() {
-            stopped = true;
-            if (recognition) recognition.stop();
-            speak("Attendance stopped");
-            document.getElementById("status").innerText =
-                "Attendance Stopped!\n" + JSON.stringify(attendance, null, 2);
-        }
-
-        function startAttendance() {
-            stopped = false;
-            roll = 0;
-            callNextStudent();
-        }
-
-        function callNextStudent() {
-            if (stopped) return;
-
-            if (roll >= students.length) {
-                speak("Attendance completed");
-                document.getElementById("status").innerText = "Attendance Completed!";
-                console.log(attendance);
-                return;
-            }
-
-            const name = students[roll];
-            speak(`Roll number ${roll+1}, ${name}`);
-            document.getElementById("status").innerText = `Calling: Roll ${roll+1} - ${name}`;
-
-            setTimeout(() => {
-                if (stopped) return;
-
-                speak("Say Present");
-                listen((response) => {
-
-                    if (response.includes("present")) {
-                        attendance[name] = "Present";
-                        speak("Marked Present");
-                    } else {
-                        attendance[name] = "Absent";
-                        speak("Marked Absent");
-                    }
-
-                    roll++;
-                    callNextStudent();
-                });
-            }, 1500);
-        }
-    </script>
+  </script>
 </body>
 </html>
